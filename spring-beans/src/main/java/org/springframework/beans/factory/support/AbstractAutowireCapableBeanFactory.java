@@ -557,6 +557,9 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 			instanceWrapper = this.factoryBeanInstanceCache.remove(beanName);
 		}
 		if (instanceWrapper == null) {
+			/**
+			 * 创建 bean 实例，多数情况，就是基于无参构造函数创建一个空bean
+			 */
 			instanceWrapper = createBeanInstance(beanName, mbd, args);
 		}
 		Object bean = instanceWrapper.getWrappedInstance();
@@ -569,6 +572,9 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 		synchronized (mbd.postProcessingLock) {
 			if (!mbd.postProcessed) {
 				try {
+					/**
+					 * 给每个 BeanDefinition 查找属性注入点，一般是类属性，但是也有人方法里面也设置属性注入点
+					 */
 					applyMergedBeanDefinitionPostProcessors(mbd, beanType, beanName);
 				}
 				catch (Throwable ex) {
@@ -583,18 +589,36 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 		// even when triggered by lifecycle interfaces like BeanFactoryAware.
 		boolean earlySingletonExposure = (mbd.isSingleton() && this.allowCircularReferences &&
 				isSingletonCurrentlyInCreation(beanName));
+		/**
+		 * earlySingletonExposure 意为： 提前将单例暴露
+		 * true：代表提前暴露，主要是为了可以进行循环依赖
+		 * 默认情况都是true，不过springboot高版本默认将 allowCircularReferences 设置为 false了
+		 */
 		if (earlySingletonExposure) {
 			if (logger.isTraceEnabled()) {
 				logger.trace("Eagerly caching bean '" + beanName +
 						"' to allow for resolving potential circular references");
 			}
+			/**
+			 * 注意此处只是往三级缓存里面里面放了一个 ObjectFactory 对象，而该对象只有实际使用时，才会返回实例（proxy过的）
+			 */
 			addSingletonFactory(beanName, () -> getEarlyBeanReference(beanName, mbd, bean));
 		}
 
 		// Initialize the bean instance.
 		Object exposedObject = bean;
 		try {
+			/**
+			 * 给bean注入属性
+			 */
 			populateBean(beanName, mbd, instanceWrapper);
+			/**
+			 * 实例化bean：
+			 * 1. 执行各类 Aware 接口的方法，一般用来给某个类注入 BeanFactory或者ApplicationContext， 但是其实Spring支持这俩直接注入
+			 * 2. 执行加了@PostConstruct注解的方法
+			 * 3. 执行实现了 InitializingBean 接口的回调方法
+			 * 4. 进行 bean 的 proxy
+			 */
 			exposedObject = initializeBean(beanName, exposedObject, mbd);
 		}
 		catch (Throwable ex) {
@@ -607,8 +631,15 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 		}
 
 		if (earlySingletonExposure) {
+			/**
+			 * 执行三级缓存里的 ObjectFactory 的 getObject 方法，
+			 * 将获得的对象放入到二级缓存里
+			 */
 			Object earlySingletonReference = getSingleton(beanName, false);
 			if (earlySingletonReference != null) {
+				/**
+				 * 绝大多数情况，因为 ObjectFactory 一般就是把原始对象 直接return，所以相等
+				 */
 				if (exposedObject == bean) {
 					exposedObject = earlySingletonReference;
 				}
@@ -620,6 +651,9 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 							actualDependentBeans.add(dependentBean);
 						}
 					}
+					/**
+					 * 目前遇到这种情况的例子都是在循环依赖的 bean 里面使用了@Async 注解导致的
+					 */
 					if (!actualDependentBeans.isEmpty()) {
 						throw new BeanCurrentlyInCreationException(beanName,
 								"Bean with name '" + beanName + "' has been injected into other beans [" +
@@ -635,6 +669,9 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 
 		// Register bean as disposable.
 		try {
+			/**
+			 * 给bean注入销毁方法
+			 */
 			registerDisposableBeanIfNecessary(beanName, bean, mbd);
 		}
 		catch (BeanDefinitionValidationException ex) {
