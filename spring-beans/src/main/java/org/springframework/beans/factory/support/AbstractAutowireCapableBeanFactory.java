@@ -643,6 +643,14 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 				if (exposedObject == bean) {
 					exposedObject = earlySingletonReference;
 				}
+				/**
+				 * hasDependentBean 的意思是是否有依赖该 bean 的bean存在
+				 * 如果 exposedObject != bean，也就是bean在创建过程中变化过，
+				 * 且存在依赖该 bean 的 dependentBeans，而且呢，dependentBeans 里有些 bean 已经创建完成了，
+				 * 也就是说创建完成的 dependentBeans 注入的 可能是 bean，但是 bean != exposedObject，
+				 * 对于 spring 容器来说，beanName 存在两个 bean，当前本身是 exposedObject，但是其他 dependentBeans 注入的却是 bean
+				 * 不可接受，所以抛出异常
+				 */
 				else if (!this.allowRawInjectionDespiteWrapping && hasDependentBean(beanName)) {
 					String[] dependentBeans = getDependentBeans(beanName);
 					Set<String> actualDependentBeans = new LinkedHashSet<>(dependentBeans.length);
